@@ -71,8 +71,8 @@ eval("get"+capitalize(view))(tasks, selectedDate);
 function getMeta(tasks) {
 	for (i=0;i<tasks.length;i++) {
 		var taskText = tasks[i].text;
-		var taskFile = getFilename(tasks[i].path);
-		var dailyNoteMatch = taskFile.match(eval(dailyNoteRegEx));
+		var taskFilePath = getFilePath(tasks[i].path);
+		var dailyNoteMatch = taskFilePath[1].match(eval(dailyNoteRegEx)) || taskFilePath[0].replace(dailyNoteFolder+"/", "").match(eval(dailyNoteRegEx));
 		var dailyTaskMatch = taskText.match(/(\d{4}\-\d{2}\-\d{2})/);
 		if (dailyNoteMatch) {
 			if(!dailyTaskMatch) {
@@ -130,9 +130,9 @@ function getMeta(tasks) {
 	};
 };
 
-function getFilename(path) {
-	var filename = path.match(/^(?:.*\/)?([^\/]+?|)(?=(?:\.[^\/.]*)?$)/)[1];
-	return filename;
+function getFilePath(path) {
+	var filepath = path.match(/^(?:.*\/)?([^\/]+?|)(?=(?:\.[^\/.]*)?$)/);
+	return filepath;
 };
 
 function capitalize(str) {
@@ -150,30 +150,33 @@ function transColor(color, percent) {
 };
 
 function momentToRegex(momentFormat) {
+	momentFormat = momentFormat.replaceAll("[", "\\");
+	momentFormat = momentFormat.replaceAll("]", "");
+
 	momentFormat = momentFormat.replaceAll(".", "\\.");
 	momentFormat = momentFormat.replaceAll(",", "\\,");
 	momentFormat = momentFormat.replaceAll("-", "\\-");
 	momentFormat = momentFormat.replaceAll(":", "\\:");
 	momentFormat = momentFormat.replaceAll(" ", "\\s");
 	
-	momentFormat = momentFormat.replace("dddd", "\\w{1,}");
-	momentFormat = momentFormat.replace("ddd", "\\w{1,3}");
-	momentFormat = momentFormat.replace("dd", "\\w{2}");
-	momentFormat = momentFormat.replace("d", "\\d{1}");
+	momentFormat = momentFormat.replaceAll("dddd", "\\w{1,}");
+	momentFormat = momentFormat.replaceAll("ddd", "\\w{1,3}");
+	momentFormat = momentFormat.replaceAll("dd", "\\w{2}");
+	momentFormat = momentFormat.replaceAll("d", "\\d{1}");
 	
-	momentFormat = momentFormat.replace("YYYY", "\\d{4}");
-	momentFormat = momentFormat.replace("YY", "\\d{2}");
+	momentFormat = momentFormat.replaceAll("YYYY", "\\d{4}");
+	momentFormat = momentFormat.replaceAll("YY", "\\d{2}");
 	
-	momentFormat = momentFormat.replace("MMMM", "\\w{1,}");
-	momentFormat = momentFormat.replace("MMM", "\\w{3}");
-	momentFormat = momentFormat.replace("MM", "\\d{2}");
+	momentFormat = momentFormat.replaceAll("MMMM", "\\w{1,}");
+	momentFormat = momentFormat.replaceAll("MMM", "\\w{3}");
+	momentFormat = momentFormat.replaceAll("MM", "\\d{2}");
 	
-	momentFormat = momentFormat.replace("DDDD", "\\d{3}");
-	momentFormat = momentFormat.replace("DDD", "\\d{1,3}");
-	momentFormat = momentFormat.replace("DD", "\\d{2}");
-	momentFormat = momentFormat.replace("D", "\\d{1,2}");
+	momentFormat = momentFormat.replaceAll("DDDD", "\\d{3}");
+	momentFormat = momentFormat.replaceAll("DDD", "\\d{1,3}");
+	momentFormat = momentFormat.replaceAll("DD", "\\d{2}");
+	momentFormat = momentFormat.replaceAll("D", "\\d{1,2}");
 	
-	momentFormat = momentFormat.replace("ww", "\\d{1,2}");
+	momentFormat = momentFormat.replaceAll("ww", "\\d{1,2}");
 	
 	regEx = "/^(" + momentFormat + ")$/";
 
@@ -204,7 +207,7 @@ function setTask(obj, cls) {
 	var taskPath = obj.link.path.replace("'", "&apos;");
 	var taskIcon = eval("task"+capitalize(cls)+"Icon");
 	if (obj.due) { var relative = moment(obj.due).fromNow() } else { var relative = "" };
-	var noteFilename = getFilename(taskPath);
+	var noteFilename = getFilePath(taskPath)[1];
 	if (noteIcon) { noteFilename = noteIcon+"&nbsp;"+noteFilename } else { noteFilename = taskIcon+"&nbsp;"+noteFilename; cls += " noNoteIcon" };
 	var taskSubpath = obj.header.subpath;
 	var taskLine = taskSubpath ? taskPath+"#"+taskSubpath : taskPath;
@@ -508,7 +511,9 @@ function getMonth(tasks, month) {
 				yearNr = moment(month).add(i, "days").format("YYYY");
 			};
 			var currentDate = moment(month).add(i, "days").format("YYYY-MM-DD");
-			if (!dailyNoteFolder) {var dailyNotePath = currentDate} else {var dailyNotePath = dailyNoteFolder+"/"+currentDate};
+
+			var dailyNotePath = getDailyNotePath(dailyNoteFolder, dailyNoteFormat, currentDate);
+			
 			var weekDay = moment(month).add(i, "days").format("d");
 			var shortDayName = moment(month).add(i, "days").format("D");
 			var longDayName = moment(month).add(i, "days").format("D. MMM");
@@ -585,7 +590,9 @@ function getWeek(tasks, week) {
 	
 	for (i=0-currentWeekday+parseInt(firstDayOfWeek);i<7-currentWeekday+parseInt(firstDayOfWeek);i++) {
 		var currentDate = moment(week).add(i, "days").format("YYYY-MM-DD");
-		if (!dailyNoteFolder) {var dailyNotePath = currentDate} else {var dailyNotePath = dailyNoteFolder+"/"+currentDate};
+		
+		var dailyNotePath = getDailyNotePath(dailyNoteFolder, dailyNoteFormat, currentDate);
+
 		var weekDay = moment(week).add(i, "days").format("d");
 		var dayName = moment(currentDate).format("ddd D.");
 		var longDayName = moment(currentDate).format("ddd, D. MMM");
@@ -699,3 +706,18 @@ function getList(tasks, month) {
 		listElement.scrollTo(0, scrollPos);
 	};
 };
+
+function getDailyNotePath(dailyNoteFolder, dailyNoteFormat, currentDate) {
+	var path = []
+
+	if (dailyNoteFolder)
+		path.push(dailyNoteFolder);
+	
+	if (dailyNoteFormat) {
+		path.push(moment(currentDate).format(dailyNoteFormat) + ".md");
+	} else {
+		path.push(currentDate);
+	}
+
+	return path.join("/");
+}
